@@ -14,7 +14,10 @@ Yêu cầu:
 import weaviate
 from sentence_transformers import SentenceTransformer
 
-from task4_chunking_indexing import connect_to_weaviate_cloud, EMBEDDING_MODEL
+try:
+    from src.task4_chunking_indexing import connect_to_weaviate_cloud, EMBEDDING_MODEL
+except ImportError:
+    from task4_chunking_indexing import connect_to_weaviate_cloud, EMBEDDING_MODEL
 
 
 def semantic_search(query: str, top_k: int = 10) -> list[dict]:
