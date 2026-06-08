@@ -10,6 +10,13 @@ Yêu cầu:
 """
 
 
+# pyrefly: ignore [missing-import]
+import weaviate
+from sentence_transformers import SentenceTransformer
+
+from task4_chunking_indexing import connect_to_weaviate_cloud, EMBEDDING_MODEL
+
+
 def semantic_search(query: str, top_k: int = 10) -> list[dict]:
     """
     Tìm kiếm ngữ nghĩa sử dụng vector similarity.
@@ -26,37 +33,56 @@ def semantic_search(query: str, top_k: int = 10) -> list[dict]:
         }
         Sorted by score descending.
     """
-    # TODO: Implement semantic search
-    #
     # Bước 1: Embed query bằng cùng model ở Task 4
-    # Bước 2: Query vector store (cosine similarity)
-    # Bước 3: Return top_k results
-    #
-    # Ví dụ với Weaviate:
-    # import weaviate
-    # from sentence_transformers import SentenceTransformer
-    #
-    # model = SentenceTransformer("BAAI/bge-m3")
-    # query_embedding = model.encode(query).tolist()
-    #
-    # client = weaviate.connect_to_local()
-    # collection = client.collections.get("DrugLawDocs")
-    #
-    # results = collection.query.near_vector(
-    #     near_vector=query_embedding,
-    #     limit=top_k,
-    #     return_metadata=MetadataQuery(distance=True)
-    # )
-    #
-    # return [
-    #     {
-    #         "content": obj.properties["content"],
-    #         "score": 1 - obj.metadata.distance,  # distance → similarity
-    #         "metadata": {"source": obj.properties["source"], ...}
-    #     }
-    #     for obj in results.objects
-    # ]
-    raise NotImplementedError("Implement semantic_search")
+    model = SentenceTransformer(EMBEDDING_MODEL)
+    query_embedding = model.encode(query).tolist()
+
+    # Bước 2: Kết nối vector store (Weaviate)
+    client = None
+    try:
+        client = connect_to_weaviate_cloud()
+    except Exception:
+        # Fallback to local connection
+        client = weaviate.connect_to_local()
+
+    try:
+        collection_name = "DrugLawDocs"
+        if not client.collections.exists(collection_name):
+            print(f"Collection {collection_name} không tồn tại. Trả về kết quả rỗng.")
+            return []
+
+        collection = client.collections.get(collection_name)
+
+        # Truy vấn near_vector
+        results = collection.query.near_vector(
+            near_vector=query_embedding,
+            limit=top_k,
+            return_metadata=weaviate.classes.query.MetadataQuery(distance=True)
+        )
+
+        # Bước 3: Định dạng kết quả và tính score (cosine similarity = 1 - distance)
+        search_results = []
+        for obj in results.objects:
+            distance = obj.metadata.distance
+            score = 1.0 - distance if distance is not None else 0.0
+            
+            search_results.append({
+                "content": obj.properties.get("content", ""),
+                "score": score,
+                "metadata": {
+                    "source": obj.properties.get("source", ""),
+                    "type": obj.properties.get("doc_type", ""),
+                    "chunk_index": obj.properties.get("chunk_index", 0)
+                }
+            })
+
+        # Sắp xếp kết quả giảm dần theo score
+        search_results.sort(key=lambda x: x["score"], reverse=True)
+        return search_results[:top_k]
+
+    finally:
+        if client:
+            client.close()
 
 
 if __name__ == "__main__":
