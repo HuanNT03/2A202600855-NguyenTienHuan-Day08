@@ -170,9 +170,32 @@ run_dashboard()
 
 ## Kiến Trúc Hệ Thống
 
+Hệ thống RAG Chatbot được thiết kế theo luồng xử lý tuần tự (Pipeline Flow) từ lúc nhận yêu cầu đến khi phản hồi cho người dùng:
+
+```mermaid
+graph TD
+    Start([Bắt đầu]) --> Input[Nhận câu hỏi từ người dùng]
+    Input --> HistoryCheck{Có lịch sử trò chuyện?}
+    
+    HistoryCheck -->|Có| Rewrite[Query Rewrite: Viết lại thành câu hỏi độc lập]
+    HistoryCheck -->|Không| Retrieve[Retrieve: Truy xuất tài liệu tham chiếu từ Pipeline]
+    
+    Rewrite --> Retrieve
+    
+    Retrieve --> Reorder[Reorder: Sắp xếp lại Chunks tránh Lost in the Middle]
+    Reorder --> LoadHistory[Nạp lịch sử trò chuyện & Context vào Prompt]
+    LoadHistory --> CallLLM[Gọi LLM qwen3.5-122b-a10b]
+    CallLLM --> StreamResponse[Stream câu trả lời & hiển thị Source Documents trên Side Panel]
+    StreamResponse --> End([Kết thúc])
 ```
-[Vẽ diagram kiến trúc ở đây]
-```
+
+### Các bước hoạt động chi tiết:
+1. **Nhận câu hỏi**: Nhận tin nhắn mới từ giao diện người dùng Chainlit và hiển thị ngay lập tức để giao diện không bị gián đoạn.
+2. **Query Rewrite (nếu có lịch sử)**: Tự động chạy cơ chế viết lại câu hỏi tiếp nối dựa trên ngữ cảnh lịch sử trò chuyện của phiên làm việc hiện tại thành một câu hỏi độc lập duy nhất.
+3. **Retrieve (Truy xuất tài liệu)**: Truy xuất các tài liệu pháp luật và tin tức liên quan từ cơ sở dữ liệu (sử dụng hybrid search kết hợp dense & sparse search, reranking và pageindex fallback).
+4. **Reorder (Sắp xếp tránh Lost in the Middle)**: Sắp xếp lại danh sách tài liệu tìm kiếm được (đặt các tài liệu có độ tương đồng cao nhất ở đầu và cuối prompt, tài liệu ít tương đồng ở giữa) để tối ưu hóa sự tập trung của LLM.
+5. **Nạp lịch sử nói chuyện**: Gộp toàn bộ lịch sử trò chuyện và ngữ cảnh tài liệu tham chiếu đã tối ưu vào prompt cấu trúc.
+6. **Gọi LLM & Stream trả lời**: Gọi mô hình `qwen3.5-122b-a10b` thông qua `AsyncOpenAI` ở chế độ stream để trả lời người dùng trong thời gian thực kèm trích dẫn (citation), đồng thời hiển thị văn bản tham chiếu gốc ở cột Side Panel.
 
 ---
 
@@ -180,10 +203,7 @@ run_dashboard()
 
 | Thành viên | MSSV | Nhiệm vụ | Trạng thái |
 |-----------|------|----------|------------|
-| | | | |
-| | | | |
-| | | | |
-| | | | |
+| Nguyễn Tiến Huân | 2A202600855 | - Thu thập, làm sạch & convert dữ liệu (Task 1-3)<br>- Thiết kế Chunking & Indexing Weaviate (Task 4)<br>- Triển khai Semantic Search & BM25 (Task 5-6)<br>- Reranking (RRF, MMR, Cross-Encoder) & PageIndex (Task 7-8)<br>- Tích hợp Pipeline & Generation (Task 9-10)<br>- Xây dựng UI Chatbot, Query Rewriting & Streaming (app.py) | Hoàn thành |
 
 ---
 
