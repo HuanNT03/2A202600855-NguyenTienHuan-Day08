@@ -1,0 +1,45 @@
+# Environments
+.env
+.venv
+
+# Python, Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# Data
+data/landing/*
+data/standardized/*
+!data/landing/.gitkeep
+!data/standardized/.gitkeep
+*.pdf
+*.docx
+*.json
+*.html
+
+# Vector Database (Nếu bạn chạy local như ChromaDB)
+chroma_db/
+weaviate_data/
+.weaviate/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Pytest / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
