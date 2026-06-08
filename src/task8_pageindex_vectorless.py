@@ -31,22 +31,24 @@ def upload_documents():
     """
     Upload toàn bộ markdown documents lên PageIndex.
     """
-    # TODO: Implement upload
-    #
-    # Tham khảo: https://github.com/VectifyAI/PageIndex
-    #
-    # from pageindex import PageIndex
-    #
-    # pi = PageIndex(api_key=PAGEINDEX_API_KEY)
-    #
-    # for md_file in STANDARDIZED_DIR.rglob("*.md"):
-    #     content = md_file.read_text(encoding="utf-8")
-    #     pi.upload(
-    #         content=content,
-    #         metadata={"filename": md_file.name, "type": md_file.parent.name}
-    #     )
-    #     print(f"  ✓ Uploaded: {md_file.name}")
-    raise NotImplementedError("Implement upload_documents")
+    from pageindex import PageIndexClient
+    
+    if not PAGEINDEX_API_KEY or PAGEINDEX_API_KEY == "pi_xxx":
+        raise ValueError("PAGEINDEX_API_KEY chưa được cấu hình hợp lệ trong file .env.")
+    client = PageIndexClient(api_key=PAGEINDEX_API_KEY)
+    
+    if not STANDARDIZED_DIR.exists():
+        print(f"Thư mục {STANDARDIZED_DIR} không tồn tại.")
+        return []
+    uploaded_doc_ids = []
+    for md_file in STANDARDIZED_DIR.rglob("*.md"):
+        # Upload và submit document lên PageIndex
+        response = client.submit_document(file_path=str(md_file))
+        doc_id = response.get("doc_id")
+        print(f"  ✓ Uploaded: {md_file.name} (doc_id: {doc_id})")
+        if doc_id:
+            uploaded_doc_ids.append(doc_id)
+    return uploaded_doc_ids
 
 
 def pageindex_search(query: str, top_k: int = 5) -> list[dict]:
@@ -66,23 +68,50 @@ def pageindex_search(query: str, top_k: int = 5) -> list[dict]:
             'source': 'pageindex'   # Đánh dấu nguồn retrieval
         }
     """
-    # TODO: Implement PageIndex query
-    #
-    # from pageindex import PageIndex
-    #
-    # pi = PageIndex(api_key=PAGEINDEX_API_KEY)
-    # results = pi.query(query=query, top_k=top_k)
-    #
-    # return [
-    #     {
-    #         "content": r.text,
-    #         "score": r.score,
-    #         "metadata": r.metadata,
-    #         "source": "pageindex"
-    #     }
-    #     for r in results
-    # ]
-    raise NotImplementedError("Implement pageindex_search")
+    from pageindex import PageIndexClient
+    import time
+    if not PAGEINDEX_API_KEY or PAGEINDEX_API_KEY == "pi_xxx":
+        raise ValueError("PAGEINDEX_API_KEY chưa được cấu hình hợp lệ trong file .env.")
+    client = PageIndexClient(api_key=PAGEINDEX_API_KEY)
+    
+    # Liệt kê tài liệu đã có
+    docs_resp = client.list_documents(limit=50)
+    documents = docs_resp.get("documents", [])
+    results = []
+    for doc in documents:
+        doc_id = doc.get("id")
+        if not doc_id:
+            continue
+        
+        # Gửi truy vấn
+        query_resp = client.submit_query(doc_id=doc_id, query=query)
+        retrieval_id = query_resp.get("retrieval_id")
+        if not retrieval_id:
+            continue
+        # Chờ kết quả retrieval (polling tối đa 10 lần)
+        retries = 10
+        retrieval_result = None
+        while retries > 0:
+            status_resp = client.get_retrieval(retrieval_id)
+            if status_resp.get("status") == "completed":
+                retrieval_result = status_resp
+                break
+            elif status_resp.get("status") == "failed":
+                break
+            time.sleep(1)
+            retries -= 1
+        if retrieval_result:
+            nodes = retrieval_result.get("results", []) or retrieval_result.get("nodes", []) or retrieval_result.get("chunks", [])
+            for node in nodes:
+                results.append({
+                    "content": node.get("text", "") or node.get("content", ""),
+                    "score": float(node.get("score", 0.5)),
+                    "metadata": node.get("metadata", {}),
+                    "source": "pageindex"
+                })
+    # Sắp xếp kết quả theo score giảm dần
+    results.sort(key=lambda x: x["score"], reverse=True)
+    return results[:top_k]
 
 
 if __name__ == "__main__":
