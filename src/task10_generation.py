@@ -162,7 +162,7 @@ def generate_with_citation(query: str, top_k: int = TOP_K) -> dict:
     dashscope_key = os.getenv("DASHSCOPE_API_KEY")
     if dashscope_key:
         api_key = dashscope_key
-        base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        base_url = "https://ws-rcvsccl6lcfj1n1s.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
         
     client = OpenAI(api_key=api_key, base_url=base_url)
 
